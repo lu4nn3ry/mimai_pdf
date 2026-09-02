@@ -1,0 +1,13 @@
+{
+  "name": "tradutor-pdf-ocr-ollama",
+  "version": "1.0.0",
+  "description": "Tradutor de PDF & OCR com IA Local (Ollama)",
+  "scripts": {
+    "dev": "npx serve . -p 8080",
+    "start": "npx serve . -p 8080"
+  },
+  "keywords": ["pdf", "translator", "ollama", "ocr"],
+  "author": "",
+  "license": "MIT"
+}
+
