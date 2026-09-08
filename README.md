@@ -22,6 +22,12 @@ Aplicação desktop nativa para Windows 11 que abre, visualiza, reconhece e trad
 
 O projeto é Windows-only e não depende de Node.js, Python, Rust, Electron ou Tauri. A compilação usa o `csc.exe` do .NET Framework instalado no Windows.
 
+## Demonstração
+
+![Mimai PDF em execução](IMG_0277.PNG)
+
+O screenshot mostra a interface desktop com navegação por páginas, visualização original, painel de tradução e conexão com Ollama.
+
 ## Arquitetura
 
 ```text
@@ -113,4 +119,4 @@ Depois abra um PDF pelo botão, arraste o arquivo para a janela ou use `Ctrl+O`.
 
 ## Licença
 
-MIT.
+Este projeto é distribuído sob a [licença MIT](LICENSE).
