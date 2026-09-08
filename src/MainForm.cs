@@ -333,6 +333,11 @@ namespace TradutorPdfOllama
             _wbTranslated = new WebBrowser();
             _wbTranslated.Dock = DockStyle.Fill;
             _wbTranslated.BackColor = _bgPanel;
+            // O painel só exibe HTML local. Impedir scripts e suprimir os
+            // diálogos do motor IE evita o pedido de permissão causado pelo
+            // MathJax remoto e mantém o conteúdo da tradução seguro.
+            _wbTranslated.AllowNavigation = false;
+            _wbTranslated.ScriptErrorsSuppressed = true;
 
             _rightPanel.Controls.Add(_wbTranslated);
             _rightPanel.Controls.Add(_lblRightHeader);
@@ -606,11 +611,17 @@ namespace TradutorPdfOllama
                     };
                     using (var proc = System.Diagnostics.Process.Start(psi))
                     {
-                        proc.WaitForExit(60000);
+                        if (!proc.WaitForExit(60000))
+                        {
+                            try { proc.Kill(); } catch { }
+                            BeginInvoke(new Action(() => _statusLabel.Text = "Tempo esgotado ao renderizar a página PDF."));
+                            return;
+                        }
                         string renderError = proc.StandardError.ReadToEnd();
                         if (proc.ExitCode != 0)
                         {
-                            BeginInvoke(new Action(() => _statusLabel.Text = "Erro ao renderizar PDF: " + renderError.Trim()));
+                            string detail = string.IsNullOrWhiteSpace(renderError) ? "o renderizador terminou com erro." : renderError.Trim();
+                            BeginInvoke(new Action(() => _statusLabel.Text = "Erro ao renderizar PDF: " + detail));
                             return;
                         }
                     }
@@ -1028,7 +1039,6 @@ namespace TradutorPdfOllama
 <html>
 <head>
     <meta charset='UTF-8'>
-    <script src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'></script>
     <style>
         body {{
             background-color: #FFFFFF;
@@ -1110,6 +1120,7 @@ namespace TradutorPdfOllama
             font-style: italic;
         }}
         .mjx-chtml {{ color: #0F172A !important; }}
+        .math {{ font-family: 'Cambria Math', 'Consolas', monospace; color: #334155; white-space: pre-wrap; }}
     </style>
 </head>
 <body>
@@ -1125,6 +1136,20 @@ namespace TradutorPdfOllama
             if (string.IsNullOrEmpty(md)) return "";
 
             string result = md;
+
+            // Preserve LaTeX while applying the small Markdown converter.
+            // Otherwise '*' and '_' inside expressions are interpreted as
+            // Markdown emphasis and corrupt the formula.
+            var mathBlocks = new List<string>();
+            result = System.Text.RegularExpressions.Regex.Replace(result,
+                @"(\$\$[\s\S]*?\$\$|\$[^$\r\n]+\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))",
+                new System.Text.RegularExpressions.MatchEvaluator(match =>
+                {
+                    string value = match.Value;
+                    int index = mathBlocks.Count;
+                    mathBlocks.Add(value);
+                    return "@@MATH" + index + "@@";
+                }));
 
             // Escaping basic HTML to prevent injection but keeping our converted tags
             result = result.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
@@ -1156,6 +1181,12 @@ namespace TradutorPdfOllama
 
             // Paragraphs (double newline)
             result = result.Replace("\n\n", "<br/><br/>").Replace("\n", "<br/>");
+
+            for (int i = 0; i < mathBlocks.Count; i++)
+            {
+                string math = mathBlocks[i].Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+                result = result.Replace("@@MATH" + i + "@@", "<span class='math'>" + math + "</span>");
+            }
 
             return result;
         }
