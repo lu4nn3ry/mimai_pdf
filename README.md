@@ -74,6 +74,10 @@ Pelo terminal:
 
 Ou execute `build.bat` e depois `run.bat`. O executável gerado é `mimai_pdf.exe`.
 
+## Download
+
+A versão pública para Windows está disponível na [release v1.0.0](https://github.com/lu4nn3ry/mimai_pdf/releases/tag/v1.0.0). O download direto é [mimai_pdf.exe](https://github.com/lu4nn3ry/mimai_pdf/releases/download/v1.0.0/mimai_pdf.exe).
+
 Para preparar o Ollama:
 
 ```powershell
