@@ -39,7 +39,7 @@ function Invoke-WinRtAction($asyncAction) {
 }
 
 $fullPath = [System.IO.Path]::GetFullPath($PdfPath)
-if (-not (Test-Path -LiteralPath $fullPath)) {
+if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
     throw "Arquivo PDF não encontrado: $fullPath"
 }
 
@@ -69,9 +69,10 @@ $reader.ReadBytes($bytes)
 $reader.Dispose()
 $stream.Dispose()
 
-$outDir = [System.IO.Path]::GetDirectoryName($OutputPath)
-if ($outDir -and -not (Test-Path $outDir)) {
+$outputFullPath = [System.IO.Path]::GetFullPath($OutputPath)
+$outDir = [System.IO.Path]::GetDirectoryName($outputFullPath)
+if ($outDir -and -not (Test-Path -LiteralPath $outDir)) {
     [System.IO.Directory]::CreateDirectory($outDir) | Out-Null
 }
 
-[System.IO.File]::WriteAllBytes($OutputPath, $bytes)
+[System.IO.File]::WriteAllBytes($outputFullPath, $bytes)

@@ -1,6 +1,10 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+set "ROOT=%~dp0"
+pushd "%ROOT%" >nul || (
+    echo [ERRO] Nao foi possivel acessar a pasta do projeto.
+    exit /b 1
+)
 title Compilador Nativo Windows 11 - Tradutor PDF ^& Ollama
 
 echo ========================================================
@@ -8,10 +12,10 @@ echo   Compilando Tradutor PDF ^& OCR Ollama (C# Nativo)
 echo ========================================================
 echo.
 
-set CSC=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe
+set "CSC=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
 if not exist "%CSC%" (
-    set CSC=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe
+    set "CSC=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
 )
 
 if not exist "%CSC%" (
@@ -21,22 +25,24 @@ if not exist "%CSC%" (
 )
 
 echo Usando compilador: %CSC%
-set ICON_FLAG=
-if exist "icon.ico" set ICON_FLAG=/win32icon:icon.ico
+set "ICON_FLAG="
+if exist "%ROOT%icon.ico" set ICON_FLAG=/win32icon:"%ROOT%icon.ico"
 
-"%CSC%" /nologo /target:winexe /optimize+ /out:mimai_pdf.exe %ICON_FLAG% /reference:System.Windows.Forms.dll,System.Drawing.dll,System.Web.Extensions.dll src\*.cs
+"%CSC%" /nologo /target:winexe /optimize+ /out:"%ROOT%mimai_pdf.exe" %ICON_FLAG% /reference:System.Windows.Forms.dll,System.Drawing.dll,System.Web.Extensions.dll "%ROOT%src\*.cs"
 
-if %ERRORLEVEL% equ 0 (
-    echo.
-    echo ========================================================
-    echo   [SUCESSO] mimai_pdf.exe compilado com sucesso!
-    echo ========================================================
-    echo.
-) else (
+if errorlevel 1 (
     echo.
     echo [ERRO] Falha na compilacao. Codigo de saida: %ERRORLEVEL%
+    popd
     pause
     exit /b %ERRORLEVEL%
 )
 
+echo.
+echo ========================================================
+echo   [SUCESSO] mimai_pdf.exe compilado com sucesso!
+echo ========================================================
+echo.
+popd
 endlocal
+exit /b 0
