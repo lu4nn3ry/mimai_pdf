@@ -39,7 +39,7 @@ function Invoke-WinRtAction($asyncAction) {
 }
 
 $fullPath = [System.IO.Path]::GetFullPath($PdfPath)
-if (-not (Test-Path $fullPath)) {
+if (-not (Test-Path -LiteralPath $fullPath)) {
     throw "Arquivo PDF não encontrado: $fullPath"
 }
 
