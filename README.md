@@ -8,6 +8,10 @@
 
 Aplicação desktop nativa para Windows 11 que abre, visualiza, reconhece e traduz documentos localmente usando C#, WinForms, APIs nativas do Windows e Ollama.
 
+## Propósito
+
+O Mimai PDF foi criado para facilitar a leitura de artigos matemáticos. A ideia central é permitir que fórmulas, símbolos, seções e explicações técnicas permaneçam organizados enquanto o conteúdo é traduzido e corrigido localmente. O projeto nasceu de uma necessidade prática de estudar artigos em outros idiomas com mais clareza, sem depender de serviços de tradução na nuvem.
+
 ## Escopo atual
 
 - Leitura de PDF, TXT e Markdown.
