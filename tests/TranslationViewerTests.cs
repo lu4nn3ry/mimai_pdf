@@ -12,6 +12,8 @@ internal static class TranslationViewerTests
         try
         {
             MathRenderer.Initialize();
+            LazyPdfTests.Run();
+            ChatPanelTests.Run();
             using (var form = new Form { ShowInTaskbar = false, Opacity = 0 })
             using (var browser = MainForm.CreateTranslationViewer())
             {

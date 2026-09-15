@@ -14,17 +14,7 @@ namespace TradutorPdfOllama
 
         internal static void Initialize()
         {
-            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
-            {
-                if (new AssemblyName(args.Name).Name != "WpfMath") return null;
-                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Mimai.WpfMath.dll"))
-                using (var bytes = new MemoryStream())
-                {
-                    if (stream == null) return null;
-                    stream.CopyTo(bytes);
-                    return Assembly.Load(bytes.ToArray());
-                }
-            };
+            EmbeddedLibraries.Initialize();
         }
 
         internal static string Render(string delimitedLatex)

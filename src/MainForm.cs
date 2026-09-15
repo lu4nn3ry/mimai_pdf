@@ -8,12 +8,14 @@ using System.Windows.Forms;
 
 namespace TradutorPdfOllama
 {
-    public class MainForm : Form
+    public partial class MainForm : Form
     {
         // Core components
         private OllamaClient _ollama;
         private TranslationCache _cache;
         private List<PdfPageData> _pages;
+        private LazyPdfDocument _pdfDocument;
+        private bool _updatingOriginalText;
         private int _currentPageIndex = 0;
         private string _currentFilePath = null;
         private CancellationTokenSource _cts = null;
@@ -80,7 +82,9 @@ namespace TradutorPdfOllama
         private readonly Color _accentRed = Color.FromArgb(225, 29, 72);        // Crimson Rose
         private readonly Color _headerBg = Color.FromArgb(241, 245, 249);       // Slate 100 (Header Badge Background)
 
-        public MainForm()
+        public MainForm() : this(true) { }
+
+        internal MainForm(bool connectToOllama)
         {
             InitializeComponent();
             _translationRenderTimer.Interval = 250;
@@ -89,20 +93,25 @@ namespace TradutorPdfOllama
                 _translationRenderTimer.Stop();
                 if (!string.IsNullOrEmpty(_currentTranslation)) RenderTranslation(_currentTranslation);
             };
-            this.FormClosed += (s, e) => _translationRenderTimer.Dispose();
+            this.FormClosed += (s, e) =>
+            {
+                _translationRenderTimer.Dispose();
+                if (_cts != null) _cts.Cancel();
+                if (_pdfDocument != null) _pdfDocument.Dispose();
+            };
             _ollama = new OllamaClient();
             _cache = new TranslationCache();
             _pages = new List<PdfPageData>();
 
             LoadLanguages();
-            CheckOllamaAndLoadModels();
+            if (connectToOllama) CheckOllamaAndLoadModels();
         }
 
         private void InitializeComponent()
         {
             this.Text = "Mimai PDF — mim não traduz, mim faz tradução";
-            this.Size = new Size(1180, 760);
-            this.MinimumSize = new Size(840, 560);
+            this.Size = new Size(1440, 800);
+            this.MinimumSize = new Size(1050, 600);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = _bgDark;
             this.ForeColor = _fgText;
@@ -347,6 +356,7 @@ namespace TradutorPdfOllama
 
             _splitContainer.Panel1.Controls.Add(_leftPanel);
             _splitContainer.Panel2.Controls.Add(_rightPanel);
+            InitializeChat();
 
             // 4. Status Strip
             _statusStrip = new StatusStrip();
@@ -494,12 +504,14 @@ namespace TradutorPdfOllama
                 }
 
                 _currentFilePath = imagePath;
+                if (_pdfDocument != null) { _pdfDocument.Dispose(); _pdfDocument = null; }
                 _pages = new List<PdfPageData>
                 {
                     new PdfPageData
                     {
                         PageNumber = 1,
                         ExtractedText = ocrText.Trim(),
+                        TextLoaded = true,
                         IsScannedOrEmpty = string.IsNullOrWhiteSpace(ocrText)
                     }
                 };
@@ -519,13 +531,25 @@ namespace TradutorPdfOllama
 
         private void LoadFile(string filePath)
         {
+            if (_translationBusy) return;
             try
             {
-                _currentFilePath = filePath;
-                _statusLabel.Text = "Extraindo conteúdo de " + Path.GetFileName(filePath) + "...";
+                _statusLabel.Text = "Abrindo " + Path.GetFileName(filePath) + "...";
                 this.Cursor = Cursors.WaitCursor;
 
-                _pages = PdfExtractor.ExtractDocument(filePath);
+                LazyPdfDocument pdf = null;
+                List<PdfPageData> pages;
+                if (string.Equals(Path.GetExtension(filePath), ".pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    pdf = new LazyPdfDocument(filePath);
+                    pages = pdf.Pages;
+                }
+                else pages = PdfExtractor.ExtractDocument(filePath);
+                if (_pdfDocument != null) _pdfDocument.Dispose();
+                _pdfDocument = pdf;
+                _previewSession = Guid.NewGuid().ToString("N");
+                _pages = pages;
+                _currentFilePath = filePath;
                 _currentPageIndex = 0;
                 this.Cursor = Cursors.Default;
 
@@ -552,6 +576,7 @@ namespace TradutorPdfOllama
                 _wbTranslated.DocumentText = GetEmptyStateHtml();
                 _btnPrevPage.Enabled = false;
                 _btnNextPage.Enabled = false;
+                SyncChat();
                 return;
             }
 
@@ -564,7 +589,12 @@ namespace TradutorPdfOllama
             _btnNextPage.Enabled = _currentPageIndex < _pages.Count - 1;
 
             _wbOriginal.Text = page.ExtractedText ?? string.Empty;
-            _rtbOriginal.Text = page.ExtractedText ?? string.Empty;
+            _updatingOriginalText = true;
+            try { _rtbOriginal.Text = page.ExtractedText ?? string.Empty; }
+            finally { _updatingOriginalText = false; }
+            _tabText.ToolTipText = page.TextLoaded ? "Texto da página atual" : "O texto será extraído ao traduzir no modo Texto extraído.";
+            _tabText.Text = page.TextLoaded ? "Texto Extraído" : "Texto (ao traduzir)";
+            _leftTabs.ShowToolTips = true;
             RenderPdfPreview();
 
             // Check cache for this page
@@ -582,76 +612,12 @@ namespace TradutorPdfOllama
             }
 
             UpdateStats();
-        }
-
-        private void RenderPdfPreview()
-        {
-            if (_pdfPreview == null || string.IsNullOrEmpty(_currentFilePath) ||
-                !string.Equals(Path.GetExtension(_currentFilePath), ".pdf", StringComparison.OrdinalIgnoreCase))
-            {
-                if (_pdfPreview != null) _pdfPreview.Image = null;
-                return;
-            }
-
-            string scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "render_pdf_page.ps1");
-            if (!File.Exists(scriptPath)) return;
-            string outputPath = GetCurrentRenderedImagePath();
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
-            _statusLabel.Text = string.Format("Renderizando página {0}...", _currentPageIndex + 1);
-            _pdfPreview.Image = null;
-
-            int pageIndex = _currentPageIndex;
-            string pdfPath = _currentFilePath;
-            ThreadPool.QueueUserWorkItem(_ =>
-            {
-                try
-                {
-                    var psi = new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "powershell.exe",
-                        Arguments = string.Format("-NoProfile -ExecutionPolicy Bypass -File \"{0}\" -PdfPath \"{1}\" -PageIndex {2} -OutputPath \"{3}\"", scriptPath, pdfPath, pageIndex, outputPath),
-                        UseShellExecute = false, CreateNoWindow = true,
-                        RedirectStandardOutput = true, RedirectStandardError = true
-                    };
-                    using (var proc = System.Diagnostics.Process.Start(psi))
-                    {
-                        if (!proc.WaitForExit(60000))
-                        {
-                            try { proc.Kill(); } catch { }
-                            BeginInvoke(new Action(() => _statusLabel.Text = "Tempo esgotado ao renderizar a página PDF."));
-                            return;
-                        }
-                        string renderError = proc.StandardError.ReadToEnd();
-                        if (proc.ExitCode != 0)
-                        {
-                            string detail = string.IsNullOrWhiteSpace(renderError) ? "o renderizador terminou com erro." : renderError.Trim();
-                            BeginInvoke(new Action(() => _statusLabel.Text = "Erro ao renderizar PDF: " + detail));
-                            return;
-                        }
-                    }
-                    if (File.Exists(outputPath))
-                    {
-                        using (var fs = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                        using (var temp = Image.FromStream(fs))
-                        {
-                            var image = new Bitmap(temp);
-                            BeginInvoke(new Action(() =>
-                            {
-                                if (pageIndex == _currentPageIndex) { _pdfPreview.Image = image; _statusLabel.Text = "Visualização PDF pronta."; }
-                                else image.Dispose();
-                            }));
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    BeginInvoke(new Action(() => _statusLabel.Text = "Não foi possível renderizar o PDF: " + ex.Message));
-                }
-            });
+            SyncChat();
         }
 
         private void NavigatePage(int delta)
         {
+            if (_translationBusy) return;
             if (_pages == null || _pages.Count == 0) return;
             int newIndex = _currentPageIndex + delta;
             if (newIndex >= 0 && newIndex < _pages.Count)
@@ -663,9 +629,10 @@ namespace TradutorPdfOllama
 
         private void UpdateOriginalTextData()
         {
-            if (_pages != null && _currentPageIndex >= 0 && _currentPageIndex < _pages.Count)
+            if (!_updatingOriginalText && _pages != null && _currentPageIndex >= 0 && _currentPageIndex < _pages.Count)
             {
                 _pages[_currentPageIndex].ExtractedText = _rtbOriginal.Text;
+                _pages[_currentPageIndex].TextLoaded = true;
             }
             UpdateStats();
         }
@@ -680,6 +647,7 @@ namespace TradutorPdfOllama
 
         private void TranslateCurrentPage()
         {
+            if (_translationBusy) return;
             if (_pages == null || _pages.Count == 0)
             {
                 MessageBox.Show("Abra um documento PDF ou de texto antes de traduzir.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -687,6 +655,17 @@ namespace TradutorPdfOllama
             }
 
             bool visionMode = _cbMode != null && _cbMode.SelectedIndex == 1;
+            if (!visionMode && _pdfDocument != null && !_pages[_currentPageIndex].TextLoaded)
+            {
+                ExtractCurrentPageForTranslation();
+                return;
+            }
+            if (!visionMode && _pdfDocument != null && _pages[_currentPageIndex].TextLoaded)
+            {
+                _updatingOriginalText = true;
+                try { _rtbOriginal.Text = _pages[_currentPageIndex].ExtractedText ?? string.Empty; }
+                finally { _updatingOriginalText = false; }
+            }
             string sourceText = _rtbOriginal.Text;
             if (!visionMode && string.IsNullOrWhiteSpace(sourceText))
             {
@@ -695,9 +674,25 @@ namespace TradutorPdfOllama
             }
 
             string imagePath = GetCurrentRenderedImagePath();
-            if (visionMode && (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath)))
+            if (visionMode && string.IsNullOrEmpty(imagePath))
             {
-                MessageBox.Show("A imagem da página ainda não foi renderizada. Aguarde a visualização terminar e tente novamente.", "OCR Vision", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                _statusLabel.Text = "O modo Vision precisa de uma página PDF renderizada.";
+                _isTranslatingAll = false;
+                _progressBar.Visible = false;
+                return;
+            }
+            if (visionMode && (!File.Exists(imagePath) || _previewInFlight.Contains(imagePath)))
+            {
+                _cts = new CancellationTokenSource();
+                var waitingRequest = _cts;
+                SetTranslatingState(true);
+                _statusLabel.Text = "Preparando imagem apenas da página selecionada para Vision...";
+                _previewReady = () =>
+                {
+                    if (_cts != waitingRequest || waitingRequest.IsCancellationRequested) return;
+                    SetTranslatingState(false);
+                    TranslateCurrentPage();
+                };
                 RenderPdfPreview();
                 return;
             }
@@ -730,6 +725,7 @@ namespace TradutorPdfOllama
             _statusLabel.Text = string.Format("Traduzindo página {0} com modelo '{1}'...", _currentPageIndex + 1, model);
 
             _cts = new CancellationTokenSource();
+            var translationRequest = _cts;
             var sbAccumulator = new StringBuilder();
 
             _ollama.StreamGenerate(
@@ -740,6 +736,7 @@ namespace TradutorPdfOllama
                 {
                     this.BeginInvoke(new Action(() =>
                     {
+                        if (_cts != translationRequest || translationRequest.IsCancellationRequested) return;
                         sbAccumulator.Append(chunk);
                         _currentTranslation = sbAccumulator.ToString();
                         // Limit HTML reloads while preserving incremental display.
@@ -750,6 +747,7 @@ namespace TradutorPdfOllama
                 {
                     this.BeginInvoke(new Action(() =>
                     {
+                        if (_cts != translationRequest || translationRequest.IsCancellationRequested) return;
                         SetTranslatingState(false);
                         _translationRenderTimer.Stop();
                         string fullTranslation = sbAccumulator.ToString();
@@ -803,7 +801,7 @@ namespace TradutorPdfOllama
         {
             if (string.IsNullOrEmpty(_currentFilePath) ||
                 !string.Equals(Path.GetExtension(_currentFilePath), ".pdf", StringComparison.OrdinalIgnoreCase)) return null;
-            return Path.Combine(Path.GetTempPath(), "TradutorPdfOllama", "page-" + (_currentPageIndex + 1) + ".png");
+            return Path.Combine(Path.GetTempPath(), "TradutorPdfOllama", _previewSession, "page-" + (_currentPageIndex + 1) + ".png");
         }
 
         private void TranslateAllPages()
@@ -857,6 +855,7 @@ namespace TradutorPdfOllama
 
         private void CancelTranslation()
         {
+            _previewReady = null;
             _translationRenderTimer.Stop();
             if (_cts != null)
             {
@@ -870,10 +869,21 @@ namespace TradutorPdfOllama
 
         private void SetTranslatingState(bool translating)
         {
+            _translationBusy = translating;
+            if (translating && _chat != null) _chat.Cancel();
             _btnTranslatePage.Enabled = !translating;
             _btnTranslateAll.Enabled = !translating;
             _btnStop.Enabled = translating;
             _btnOpen.Enabled = !translating;
+            _rtbOriginal.ReadOnly = translating;
+            _btnOcr.Enabled = !translating;
+            _cbModel.Enabled = !translating;
+            _cbLang.Enabled = !translating;
+            _cbMode.Enabled = !translating;
+            _btnRefreshModels.Enabled = !translating;
+            _btnPrevPage.Enabled = !translating && _currentPageIndex > 0;
+            _btnNextPage.Enabled = !translating && _pages != null && _currentPageIndex < _pages.Count - 1;
+            SyncChat();
         }
 
         private void ExportMarkdown()
@@ -1065,6 +1075,7 @@ namespace TradutorPdfOllama
         private void RenderTranslation(string markdown)
         {
             _currentTranslation = markdown;
+            SyncChat();
             string htmlContent = ConvertMarkdownToHtml(markdown);
 
             string fullHtml = string.Format(@"

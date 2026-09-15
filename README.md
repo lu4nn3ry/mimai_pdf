@@ -15,7 +15,7 @@ O Mimai PDF foi criado para facilitar a leitura de artigos matemáticos. A ideia
 ## Escopo atual
 
 - Leitura de PDF, TXT e Markdown.
-- Extração de texto por página com parser C# embutido.
+- Extração de texto sob demanda, apenas da página a traduzir, com PdfPig incorporado.
 - Visualização real de PDF com `Windows.Data.Pdf`.
 - OCR local para imagens e páginas escaneadas com `Windows.Media.Ocr`.
 - Dois modos de tradução: texto extraído corrigido pelo modelo ou OCR por visão enviando a imagem da página ao modelo.
@@ -24,6 +24,7 @@ O Mimai PDF foi criado para facilitar a leitura de artigos matemáticos. A ideia
 - Cache persistente por documento, página, idioma e modelo.
 - Navegação página a página e tradução em lote.
 - Exportação em Markdown e cópia da tradução.
+- Terceira coluna com chat sobre a página atual, edição da tradução por IA e opção de desfazer.
 
 O projeto é Windows-only e não depende de Node.js, Python, Rust, Electron ou Tauri. A compilação usa o `csc.exe` do .NET Framework instalado no Windows.
 
@@ -71,7 +72,7 @@ mimai_pdf.exe
 
 - Windows 10/11 com suporte às APIs `Windows.Data.Pdf` e `Windows.Media.Ocr`.
 - .NET Framework 4.x com `csc.exe` para compilar.
-- .NET Framework 4.5.2 ou superior com WPF para renderizar fórmulas (incluído no Windows compatível).
+- .NET Framework 4.7.1 ou superior com WPF para renderizar fórmulas e extrair páginas PDF.
 - Ollama instalado e em execução em `http://localhost:11434` para traduzir.
 - Um modelo Ollama, por exemplo `qwen2.5:7b`.
 
@@ -100,20 +101,25 @@ Depois abra um PDF pelo botão, arraste o arquivo para a janela ou use `Ctrl+O`.
 
 ## Fluxo de processamento
 
-1. O documento é carregado pelo `PdfExtractor`.
-2. O texto é associado às páginas extraídas.
+1. O PDF é aberto para carregar sua estrutura e contagem de páginas, sem extrair texto.
+2. Os registros das páginas ficam sem texto até serem solicitados. TXT/Markdown são carregados diretamente.
 3. A página atual é renderizada como imagem pelo `render_pdf_page.ps1`.
 4. O usuário escolhe entre “Texto extraído (manual)” ou “OCR com IA Vision”.
-5. No modo manual, o texto bruto é corrigido e traduzido; no modo Vision, a imagem renderizada é enviada ao modelo.
+5. Ao traduzir no modo manual, só o texto da página selecionada é extraído (ou reutilizado) e enviado ao modelo; no modo Vision, apenas a imagem é enviada, sem extração textual.
 6. O resultado é recebido do Ollama em streaming.
 7. A tradução é exibida e salva no cache.
 8. O documento traduzido pode ser exportado para Markdown.
 
 ## Limitações conhecidas
 
+O chat usa o modelo selecionado e o conteúdo da página atual. Escreva sua dúvida
+e clique em **Enviar** (ou `Ctrl+Enter`). Para alterar o texto, selecione
+**Editar a tradução** antes de enviar a instrução. A revisão é salva no cache;
+**Desfazer** recupera a versão anterior. A conversa é reiniciada ao mudar o contexto.
+
 - O renderizador matemático não implementa todo o LaTeX; comandos não suportados continuam visíveis como texto. Copiar e exportar preservam o LaTeX original.
 
-- O parser embutido usa heurísticas para reconstruir texto e pode perder ordem em PDFs com múltiplas colunas, tabelas ou fontes incomuns.
+- A reconstrução do texto da página pode perder ordem em PDFs com múltiplas colunas, tabelas ou fontes incomuns.
 - O cache atual usa o nome do arquivo como parte da chave; alterações no conteúdo mantendo o mesmo nome podem exigir limpeza manual do cache.
 - O OCR é acionado manualmente pela interface e ainda não é automático para toda página sem texto.
 - O `MainForm` ainda concentra parte da coordenação do fluxo; a evolução prevista está em [`TODO.md`](TODO.md).

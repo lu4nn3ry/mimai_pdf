@@ -25,8 +25,9 @@ Write-Host "Compilando arquivos C# em src\ ..." -ForegroundColor Yellow
 $sources = (Get-ChildItem -Path "src\*.cs").FullName
 $refs = "System.Windows.Forms.dll,System.Drawing.dll,System.Web.Extensions.dll,System.Xaml.dll"
 $wpfPath = Join-Path (Split-Path $cscPath) 'WPF'
-$refs += ",$wpfPath\WindowsBase.dll,$wpfPath\PresentationCore.dll,$wpfPath\PresentationFramework.dll,vendor\WpfMath\WpfMath.dll"
-$resources = @('/resource:vendor\WpfMath\WpfMath.dll,Mimai.WpfMath.dll', '/resource:vendor\WpfMath\LICENSE.md,Mimai.WpfMath.LICENSE.md')
+$refs += ",$wpfPath\WindowsBase.dll,$wpfPath\PresentationCore.dll,$wpfPath\PresentationFramework.dll"
+. (Join-Path $PSScriptRoot 'tools\embedded_libraries.ps1')
+$resources = @(Get-EmbeddedLibraryArguments $PSScriptRoot)
 $iconParam = if (Test-Path "icon.ico") { "/win32icon:icon.ico" } else { "" }
 
 if ($iconParam) {

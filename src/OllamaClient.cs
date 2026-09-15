@@ -82,7 +82,7 @@ namespace TradutorPdfOllama
             return list;
         }
 
-        public void StreamGenerate(
+        public virtual void StreamGenerate(
             string model,
             string prompt,
             string systemPrompt,
@@ -94,6 +94,7 @@ namespace TradutorPdfOllama
         {
             ThreadPool.QueueUserWorkItem(_ =>
             {
+                CancellationTokenRegistration cancellation = new CancellationTokenRegistration();
                 try
                 {
                     var request = (HttpWebRequest)WebRequest.Create(_baseUrl + "/api/generate");
@@ -102,6 +103,7 @@ namespace TradutorPdfOllama
                     request.SendChunked = false;
                     request.KeepAlive = true;
                     request.Timeout = 300000; // 5 min
+                    if (cts != null) cancellation = cts.Token.Register(() => request.Abort());
 
                     var payload = new Dictionary<string, object>
                     {
@@ -135,6 +137,7 @@ namespace TradutorPdfOllama
                         return;
                     }
 
+                    bool finished = false;
                     using (var response = (HttpWebResponse)request.GetResponse())
                     using (var respStream = response.GetResponseStream())
                     using (var reader = new StreamReader(respStream, Encoding.UTF8))
@@ -144,14 +147,14 @@ namespace TradutorPdfOllama
                         {
                             if (cts != null && cts.IsCancellationRequested)
                             {
-                                break;
+                                return;
                             }
 
                             if (string.IsNullOrWhiteSpace(line)) continue;
 
-                            try
-                            {
                                 var chunkObj = _serializer.Deserialize<Dictionary<string, object>>(line);
+                                if (chunkObj != null && chunkObj.ContainsKey("error"))
+                                    throw new InvalidOperationException(Convert.ToString(chunkObj["error"]));
                                 if (chunkObj != null && chunkObj.ContainsKey("response"))
                                 {
                                     string text = chunkObj["response"] as string;
@@ -163,16 +166,13 @@ namespace TradutorPdfOllama
                                 if (chunkObj != null && chunkObj.ContainsKey("done"))
                                 {
                                     bool done = Convert.ToBoolean(chunkObj["done"]);
-                                    if (done) break;
+                                    if (done) { finished = true; break; }
                                 }
-                            }
-                            catch
-                            {
-                                // Skip malformed json line
-                            }
                         }
                     }
 
+                    if (cts != null && cts.IsCancellationRequested) return;
+                    if (!finished) throw new IOException("A resposta do Ollama foi interrompida antes de terminar.");
                     if (onCompleted != null) onCompleted();
                 }
                 catch (ThreadAbortException)
@@ -183,13 +183,14 @@ namespace TradutorPdfOllama
                 {
                     if (cts != null && cts.IsCancellationRequested)
                     {
-                        if (onCompleted != null) onCompleted();
+                        return;
                     }
                     else
                     {
                         if (onError != null) onError(ex);
                     }
                 }
+                finally { cancellation.Dispose(); }
             });
         }
     }
