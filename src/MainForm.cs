@@ -19,6 +19,7 @@ namespace TradutorPdfOllama
         private CancellationTokenSource _cts = null;
         private bool _isTranslatingAll = false;
         private string _currentTranslation = "";
+        private readonly System.Windows.Forms.Timer _translationRenderTimer = new System.Windows.Forms.Timer();
 
         // UI Controls
         private ToolStrip _toolStrip;
@@ -82,6 +83,13 @@ namespace TradutorPdfOllama
         public MainForm()
         {
             InitializeComponent();
+            _translationRenderTimer.Interval = 250;
+            _translationRenderTimer.Tick += (s, e) =>
+            {
+                _translationRenderTimer.Stop();
+                if (!string.IsNullOrEmpty(_currentTranslation)) RenderTranslation(_currentTranslation);
+            };
+            this.FormClosed += (s, e) => _translationRenderTimer.Dispose();
             _ollama = new OllamaClient();
             _cache = new TranslationCache();
             _pages = new List<PdfPageData>();
@@ -330,14 +338,9 @@ namespace TradutorPdfOllama
             _lblRightHeader.TextAlign = ContentAlignment.MiddleLeft;
             _lblRightHeader.Padding = new Padding(8, 0, 0, 0);
 
-            _wbTranslated = new WebBrowser();
+            _wbTranslated = CreateTranslationViewer();
             _wbTranslated.Dock = DockStyle.Fill;
             _wbTranslated.BackColor = _bgPanel;
-            // O painel só exibe HTML local. Impedir scripts e suprimir os
-            // diálogos do motor IE evita o pedido de permissão causado pelo
-            // MathJax remoto e mantém o conteúdo da tradução seguro.
-            _wbTranslated.AllowNavigation = false;
-            _wbTranslated.ScriptErrorsSuppressed = true;
 
             _rightPanel.Controls.Add(_wbTranslated);
             _rightPanel.Controls.Add(_lblRightHeader);
@@ -720,6 +723,8 @@ namespace TradutorPdfOllama
             }
 
             SetTranslatingState(true);
+            _translationRenderTimer.Stop();
+            _currentTranslation = "";
             _wbTranslated.DocumentText = GetTranslatingStateHtml();
             _statusLabel.Text = string.Format("Traduzindo página {0} com modelo '{1}'...", _currentPageIndex + 1, model);
 
@@ -736,7 +741,8 @@ namespace TradutorPdfOllama
                     {
                         sbAccumulator.Append(chunk);
                         _currentTranslation = sbAccumulator.ToString();
-                        RenderTranslation(_currentTranslation);
+                        // Limit HTML reloads while preserving incremental display.
+                        if (!_translationRenderTimer.Enabled) _translationRenderTimer.Start();
                     }));
                 },
                 () =>
@@ -744,10 +750,21 @@ namespace TradutorPdfOllama
                     this.BeginInvoke(new Action(() =>
                     {
                         SetTranslatingState(false);
+                        _translationRenderTimer.Stop();
                         string fullTranslation = sbAccumulator.ToString();
                         if (!string.IsNullOrWhiteSpace(fullTranslation))
                         {
+                            _currentTranslation = fullTranslation;
+                            RenderTranslation(fullTranslation);
                             _cache.SetTranslation(_currentFilePath, _currentPageIndex + 1, targetLang, GetCacheModelKey(), fullTranslation);
+                        }
+                        else
+                        {
+                            _wbTranslated.DocumentText = GetEmptyStateHtml();
+                            _statusLabel.Text = "O modelo não retornou texto para esta página.";
+                            _isTranslatingAll = false;
+                            _progressBar.Visible = false;
+                            return;
                         }
                         _statusLabel.Text = string.Format("Tradução da página {0} concluída com sucesso.", _currentPageIndex + 1);
 
@@ -762,6 +779,7 @@ namespace TradutorPdfOllama
                     this.BeginInvoke(new Action(() =>
                     {
                         SetTranslatingState(false);
+                        _translationRenderTimer.Stop();
                         _isTranslatingAll = false;
                         _progressBar.Visible = false;
                         _statusLabel.Text = "Erro na tradução: " + ex.Message;
@@ -838,6 +856,7 @@ namespace TradutorPdfOllama
 
         private void CancelTranslation()
         {
+            _translationRenderTimer.Stop();
             if (_cts != null)
             {
                 _cts.Cancel();
@@ -1028,6 +1047,22 @@ namespace TradutorPdfOllama
   <div class='sub'>Processando tokens em tempo real com Ollama local</div>
 </body>
 </html>";
+        }
+
+        internal static WebBrowser CreateTranslationViewer()
+        {
+            var viewer = new WebBrowser();
+            // DocumentText navigates to about:blank on every replacement. Disabling
+            // all navigation freezes the viewer after its first document.
+            viewer.AllowNavigation = true;
+            viewer.ScriptErrorsSuppressed = true;
+            viewer.Navigating += (s, e) =>
+            {
+                e.Cancel = e.Url == null || !string.Equals(
+                    e.Url.AbsoluteUri, "about:blank", StringComparison.OrdinalIgnoreCase);
+            };
+            viewer.NewWindow += (s, e) => e.Cancel = true;
+            return viewer;
         }
 
         private void RenderTranslation(string markdown)
