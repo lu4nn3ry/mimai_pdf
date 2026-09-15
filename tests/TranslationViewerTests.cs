@@ -11,6 +11,7 @@ internal static class TranslationViewerTests
     {
         try
         {
+            MathRenderer.Initialize();
             using (var form = new Form { ShowInTaskbar = false, Opacity = 0 })
             using (var browser = MainForm.CreateTranslationViewer())
             {
@@ -42,6 +43,7 @@ internal static class TranslationViewerTests
                 if (Read(browser) != "Tradução da primeira página em cache")
                     throw new Exception("External navigation replaced the translation.");
                 Console.WriteLine("PASS: external navigation is blocked without clearing the translation.");
+                TestMath(browser);
             }
             return 0;
         }
@@ -50,6 +52,31 @@ internal static class TranslationViewerTests
             Console.Error.WriteLine("FAIL: " + ex.Message);
             return 1;
         }
+        finally { MathRenderer.Cleanup(); }
+    }
+
+    private static void TestMath(WebBrowser browser)
+    {
+        string[] formulas = { "$k$", "$q \\le k/2$", "$q \\ge k/2 + 1$", "$x_1$", "$^{\\dagger 2}$", @"$$\frac{a}{b}$$", @"\(\alpha + \beta\)", @"\[\sum_{i=1}^{n} x_i\]" };
+        foreach (string formula in formulas)
+        {
+            string html = MainForm.ConvertMarkdownToHtml(formula);
+            if (!html.Contains("<img ")) throw new Exception("Formula was not rendered: " + formula + " => " + html);
+            string expectedSource = System.Text.RegularExpressions.Regex.Match(html, "src='([^']+)'").Groups[1].Value;
+            browser.DocumentText = "<html><body>" + html + "</body></html>";
+            WaitUntil(() => browser.Document != null && browser.Document.Images.Count == 1 &&
+                browser.Document.Images[0].GetAttribute("src") == expectedSource &&
+                string.Equals(browser.Document.Images[0].GetAttribute("complete"), "true", StringComparison.OrdinalIgnoreCase) &&
+                browser.Document.Images[0].OffsetRectangle.Width > 0, "Formula image did not load: " + formula);
+            using (var bitmap = System.Drawing.Image.FromFile(new Uri(expectedSource).LocalPath))
+                if (bitmap.Width < 1 || bitmap.Height < 1) throw new Exception("Invalid formula bitmap.");
+        }
+        Console.WriteLine("PASS: screenshot formulas, fractions, Greek symbols, sums and all four delimiters render as images.");
+        string code = MainForm.ConvertMarkdownToHtml("`$k$`\n\n```tex\n$x_1$\n```");
+        if (code.Contains("<img ") || !code.Contains("$x_1$")) throw new Exception("Code was interpreted as math.");
+        string invalid = MainForm.ConvertMarkdownToHtml(@"$\notARealCommand{<script>}$");
+        if (invalid.Contains("<script>") || !invalid.Contains("&lt;script&gt;")) throw new Exception("Invalid math fallback is not escaped.");
+        Console.WriteLine("PASS: code remains literal and unsupported formulas fall back to escaped text.");
     }
 
     private static void ShowAndExpect(WebBrowser browser, string text)

@@ -13,3 +13,4 @@ Este diretório mantém o registro histórico das decisões de arquitetura de so
 | [ADR-0005](0005-renderizacao-de-pdfs-com-nomes-especiais.md) | Aceitar caminhos de PDF com colchetes e caracteres especiais | **Aceito** | 2026-09-08 |
 | [ADR-0006](0006-visualizador-local-sem-javascript-remoto.md) | Visualizador local sem JavaScript remoto e preservação de LaTeX | **Aceito** | 2026-09-08 |
 | [ADR-0007](0007-release-1-0-1-visualizacao-latex-e-caminhos.md) | Release 1.0.1: visualização LaTeX e caminhos robustos | **Aceito** | 2026-09-08 |
+| [ADR-0008](0008-atualizacao-do-visor-e-formulas-locais.md) | Atualização do visor e renderização matemática local | **Aceito** | 2026-09-15 |

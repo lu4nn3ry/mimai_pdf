@@ -542,6 +542,7 @@ namespace TradutorPdfOllama
 
         private void UpdatePageView()
         {
+            _currentTranslation = "";
             if (_pages == null || _pages.Count == 0)
             {
                 _lblPageInfo.Text = "Nenhum arquivo aberto";
@@ -924,12 +925,8 @@ namespace TradutorPdfOllama
 
         private void CopyTranslation()
         {
-            // We need to extract text from the WebBrowser's body
-            string text = "";
-            if (_wbTranslated.Document != null)
-            {
-                text = _wbTranslated.Document.Body.InnerText;
-            }
+            // Preserve formula source: rendered images have no DOM InnerText.
+            string text = _currentTranslation;
 
             if (!string.IsNullOrEmpty(text))
             {
@@ -1067,6 +1064,7 @@ namespace TradutorPdfOllama
 
         private void RenderTranslation(string markdown)
         {
+            _currentTranslation = markdown;
             string htmlContent = ConvertMarkdownToHtml(markdown);
 
             string fullHtml = string.Format(@"
@@ -1154,7 +1152,8 @@ namespace TradutorPdfOllama
             border-radius: 0 8px 8px 0;
             font-style: italic;
         }}
-        .mjx-chtml {{ color: #0F172A !important; }}
+        .math-image {{ vertical-align: middle; border: 0; }}
+        .math-block {{ text-align: center; margin: 16px 0; overflow-x: auto; }}
         .math {{ font-family: 'Cambria Math', 'Consolas', monospace; color: #334155; white-space: pre-wrap; }}
     </style>
 </head>
@@ -1166,11 +1165,22 @@ namespace TradutorPdfOllama
             _wbTranslated.DocumentText = fullHtml;
         }
 
-        private string ConvertMarkdownToHtml(string md)
+        internal static string ConvertMarkdownToHtml(string md)
         {
             if (string.IsNullOrEmpty(md)) return "";
 
             string result = md;
+            string tokenPrefix = "MIMAI" + Guid.NewGuid().ToString("N");
+            var codeBlocks = new List<string>();
+            result = System.Text.RegularExpressions.Regex.Replace(result,
+                @"```[^\r\n]*\r?\n([\s\S]*?)```|`([^`\r\n]+)`",
+                new System.Text.RegularExpressions.MatchEvaluator(match =>
+                {
+                    bool fenced = match.Value.StartsWith("```");
+                    string tag = fenced ? "pre" : "code";
+                    codeBlocks.Add("<" + tag + ">" + MathRenderer.Escape(match.Groups[fenced ? 1 : 2].Value) + "</" + tag + ">");
+                    return tokenPrefix + "CODE" + (codeBlocks.Count - 1) + "END";
+                }));
 
             // Preserve LaTeX while applying the small Markdown converter.
             // Otherwise '*' and '_' inside expressions are interpreted as
@@ -1183,7 +1193,7 @@ namespace TradutorPdfOllama
                     string value = match.Value;
                     int index = mathBlocks.Count;
                     mathBlocks.Add(value);
-                    return "@@MATH" + index + "@@";
+                    return tokenPrefix + "MATH" + index + "END";
                 }));
 
             // Escaping basic HTML to prevent injection but keeping our converted tags
@@ -1219,9 +1229,10 @@ namespace TradutorPdfOllama
 
             for (int i = 0; i < mathBlocks.Count; i++)
             {
-                string math = mathBlocks[i].Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
-                result = result.Replace("@@MATH" + i + "@@", "<span class='math'>" + math + "</span>");
+                result = result.Replace(tokenPrefix + "MATH" + i + "END", MathRenderer.Render(mathBlocks[i]));
             }
+            for (int i = 0; i < codeBlocks.Count; i++)
+                result = result.Replace(tokenPrefix + "CODE" + i + "END", codeBlocks[i]);
 
             return result;
         }

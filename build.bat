@@ -28,7 +28,8 @@ echo Usando compilador: %CSC%
 set "ICON_FLAG="
 if exist "%ROOT%icon.ico" set ICON_FLAG=/win32icon:"%ROOT%icon.ico"
 
-"%CSC%" /nologo /target:winexe /optimize+ /out:"%ROOT%mimai_pdf.exe" %ICON_FLAG% /reference:System.Windows.Forms.dll,System.Drawing.dll,System.Web.Extensions.dll "%ROOT%src\*.cs"
+for %%I in ("%CSC%") do set "WPF=%%~dpIWPF"
+"%CSC%" /nologo /target:winexe /optimize+ /out:"%ROOT%mimai_pdf.exe" %ICON_FLAG% /reference:System.Windows.Forms.dll,System.Drawing.dll,System.Web.Extensions.dll,System.Xaml.dll /reference:"%WPF%\WindowsBase.dll" /reference:"%WPF%\PresentationCore.dll" /reference:"%WPF%\PresentationFramework.dll" /reference:"%ROOT%vendor\WpfMath\WpfMath.dll" /resource:"%ROOT%vendor\WpfMath\WpfMath.dll",Mimai.WpfMath.dll /resource:"%ROOT%vendor\WpfMath\LICENSE.md",Mimai.WpfMath.LICENSE.md "%ROOT%src\*.cs"
 
 if errorlevel 1 (
     echo.

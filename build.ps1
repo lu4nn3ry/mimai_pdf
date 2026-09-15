@@ -2,6 +2,7 @@
 .SYNOPSIS
     Script de compilacao PowerShell nativo para Tradutor PDF Ollama
 #>
+param([string]$OutputPath = 'mimai_pdf.exe')
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================================" -ForegroundColor Cyan
@@ -22,17 +23,17 @@ Write-Host "Compilador: $cscPath" -ForegroundColor Gray
 Write-Host "Compilando arquivos C# em src\ ..." -ForegroundColor Yellow
 
 $sources = (Get-ChildItem -Path "src\*.cs").FullName
-$refs = "System.Windows.Forms.dll,System.Drawing.dll,System.Web.Extensions.dll"
+$refs = "System.Windows.Forms.dll,System.Drawing.dll,System.Web.Extensions.dll,System.Xaml.dll"
+$wpfPath = Join-Path (Split-Path $cscPath) 'WPF'
+$refs += ",$wpfPath\WindowsBase.dll,$wpfPath\PresentationCore.dll,$wpfPath\PresentationFramework.dll,vendor\WpfMath\WpfMath.dll"
+$resources = @('/resource:vendor\WpfMath\WpfMath.dll,Mimai.WpfMath.dll', '/resource:vendor\WpfMath\LICENSE.md,Mimai.WpfMath.LICENSE.md')
 $iconParam = if (Test-Path "icon.ico") { "/win32icon:icon.ico" } else { "" }
 
 if ($iconParam) {
-    & $cscPath /nologo /target:winexe /optimize+ /out:mimai_pdf.exe $iconParam /reference:$refs $sources
+    & $cscPath /nologo /target:winexe /optimize+ "/out:$OutputPath" $iconParam /reference:$refs $resources $sources
 } else {
-    & $cscPath /nologo /target:winexe /optimize+ /out:mimai_pdf.exe /reference:$refs $sources
+    & $cscPath /nologo /target:winexe /optimize+ "/out:$OutputPath" /reference:$refs $resources $sources
 }
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "`n[SUCESSO] Executável 'mimai_pdf.exe' gerado com sucesso!" -ForegroundColor Green
-} else {
-    Write-Host "`n[ERRO] Falha na compilação." -ForegroundColor Red
-}
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+Write-Host "`n[SUCESSO] Executavel '$OutputPath' gerado com sucesso!" -ForegroundColor Green

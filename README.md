@@ -20,6 +20,7 @@ O Mimai PDF foi criado para facilitar a leitura de artigos matemáticos. A ideia
 - OCR local para imagens e páginas escaneadas com `Windows.Media.Ocr`.
 - Dois modos de tradução: texto extraído corrigido pelo modelo ou OCR por visão enviando a imagem da página ao modelo.
 - Tradução por streaming através do Ollama local.
+- Fórmulas LaTeX renderizadas localmente como imagens, sem scripts remotos, com WpfMath incorporado ao executável.
 - Cache persistente por documento, página, idioma e modelo.
 - Navegação página a página e tradução em lote.
 - Exportação em Markdown e cópia da tradução.
@@ -70,6 +71,7 @@ mimai_pdf.exe
 
 - Windows 10/11 com suporte às APIs `Windows.Data.Pdf` e `Windows.Media.Ocr`.
 - .NET Framework 4.x com `csc.exe` para compilar.
+- .NET Framework 4.5.2 ou superior com WPF para renderizar fórmulas (incluído no Windows compatível).
 - Ollama instalado e em execução em `http://localhost:11434` para traduzir.
 - Um modelo Ollama, por exemplo `qwen2.5:7b`.
 
@@ -108,6 +110,8 @@ Depois abra um PDF pelo botão, arraste o arquivo para a janela ou use `Ctrl+O`.
 8. O documento traduzido pode ser exportado para Markdown.
 
 ## Limitações conhecidas
+
+- O renderizador matemático não implementa todo o LaTeX; comandos não suportados continuam visíveis como texto. Copiar e exportar preservam o LaTeX original.
 
 - O parser embutido usa heurísticas para reconstruir texto e pode perder ordem em PDFs com múltiplas colunas, tabelas ou fontes incomuns.
 - O cache atual usa o nome do arquivo como parte da chave; alterações no conteúdo mantendo o mesmo nome podem exigir limpeza manual do cache.

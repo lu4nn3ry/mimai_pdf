@@ -8,9 +8,11 @@ namespace TradutorPdfOllama
         [STAThread]
         static void Main()
         {
+            MathRenderer.Initialize();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            try { Application.Run(new MainForm()); }
+            finally { MathRenderer.Cleanup(); }
         }
     }
 }
