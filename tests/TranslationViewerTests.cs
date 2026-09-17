@@ -14,6 +14,7 @@ internal static class TranslationViewerTests
             MathRenderer.Initialize();
             LazyPdfTests.Run();
             ChatPanelTests.Run();
+            EpubTests.Run();
             using (var form = new Form { ShowInTaskbar = false, Opacity = 0 })
             using (var browser = MainForm.CreateTranslationViewer())
             {

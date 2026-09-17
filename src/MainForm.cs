@@ -444,7 +444,7 @@ namespace TradutorPdfOllama
             using (var ofd = new OpenFileDialog())
             {
                 ofd.Title = "Selecione um documento";
-                ofd.Filter = "Documentos Suportados (*.pdf;*.txt;*.md)|*.pdf;*.txt;*.md|Arquivos PDF (*.pdf)|*.pdf|Arquivos de Texto (*.txt;*.md)|*.txt;*.md|Todos os Arquivos (*.*)|*.*";
+                ofd.Filter = "Documentos Suportados (*.pdf;*.epub;*.txt;*.md)|*.pdf;*.epub;*.txt;*.md|Arquivos PDF (*.pdf)|*.pdf|Livros EPUB (*.epub)|*.epub|Arquivos de Texto (*.txt;*.md)|*.txt;*.md|Todos os Arquivos (*.*)|*.*";
                 if (ofd.ShowDialog() == DialogResult.OK)
                 {
                     LoadFile(ofd.FileName);
@@ -539,7 +539,8 @@ namespace TradutorPdfOllama
 
                 LazyPdfDocument pdf = null;
                 List<PdfPageData> pages;
-                if (string.Equals(Path.GetExtension(filePath), ".pdf", StringComparison.OrdinalIgnoreCase))
+                string ext = Path.GetExtension(filePath).ToLowerInvariant();
+                if (string.Equals(ext, ".pdf", StringComparison.OrdinalIgnoreCase))
                 {
                     pdf = new LazyPdfDocument(filePath);
                     pages = pdf.Pages;
@@ -554,6 +555,22 @@ namespace TradutorPdfOllama
                 this.Cursor = Cursors.Default;
 
                 UpdatePageView();
+
+                if (pdf != null)
+                {
+                    _tabPdf.Text = "Visualização PDF";
+                    _leftTabs.SelectedTab = _tabPdf;
+                }
+                else
+                {
+                    _tabPdf.Text = (ext == ".epub") ? "Capa do Livro" : "Visualização";
+                    _leftTabs.SelectedTab = _tabText;
+                    if (_cbMode.SelectedIndex == 1)
+                    {
+                        _cbMode.SelectedIndex = 0;
+                    }
+                }
+
                 _statusLabel.Text = string.Format("Documento carregado: {0} ({1} página(s))", Path.GetFileName(filePath), _pages.Count);
             }
             catch (Exception ex)
@@ -650,7 +667,7 @@ namespace TradutorPdfOllama
             if (_translationBusy) return;
             if (_pages == null || _pages.Count == 0)
             {
-                MessageBox.Show("Abra um documento PDF ou de texto antes de traduzir.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Abra um documento PDF, EPUB ou de texto antes de traduzir.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -799,9 +816,17 @@ namespace TradutorPdfOllama
 
         private string GetCurrentRenderedImagePath()
         {
-            if (string.IsNullOrEmpty(_currentFilePath) ||
-                !string.Equals(Path.GetExtension(_currentFilePath), ".pdf", StringComparison.OrdinalIgnoreCase)) return null;
-            return Path.Combine(Path.GetTempPath(), "TradutorPdfOllama", _previewSession, "page-" + (_currentPageIndex + 1) + ".png");
+            if (string.IsNullOrEmpty(_currentFilePath)) return null;
+            string ext = Path.GetExtension(_currentFilePath);
+            if (string.Equals(ext, ".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                return Path.Combine(Path.GetTempPath(), "TradutorPdfOllama", _previewSession, "page-" + (_currentPageIndex + 1) + ".png");
+            }
+            if (string.Equals(ext, ".epub", StringComparison.OrdinalIgnoreCase))
+            {
+                return Path.Combine(Path.GetTempPath(), "TradutorPdfOllama", _previewSession, "epub-cover.png");
+            }
+            return null;
         }
 
         private void TranslateAllPages()

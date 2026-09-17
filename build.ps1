@@ -23,7 +23,7 @@ Write-Host "Compilador: $cscPath" -ForegroundColor Gray
 Write-Host "Compilando arquivos C# em src\ ..." -ForegroundColor Yellow
 
 $sources = (Get-ChildItem -Path "src\*.cs").FullName
-$refs = "System.Windows.Forms.dll,System.Drawing.dll,System.Web.Extensions.dll,System.Xaml.dll"
+$refs = "System.Windows.Forms.dll,System.Drawing.dll,System.Web.Extensions.dll,System.Xaml.dll,System.IO.Compression.dll,System.IO.Compression.FileSystem.dll"
 $wpfPath = Join-Path (Split-Path $cscPath) 'WPF'
 $refs += ",$wpfPath\WindowsBase.dll,$wpfPath\PresentationCore.dll,$wpfPath\PresentationFramework.dll"
 . (Join-Path $PSScriptRoot 'tools\embedded_libraries.ps1')

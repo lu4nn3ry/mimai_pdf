@@ -1,0 +1,7 @@
+*.exe
+*.log
+test_out.png
+test_rendered.png
+test_sample.pdf
+mapa_ciclo_chronokairo_3dnet.html
+memory_data/

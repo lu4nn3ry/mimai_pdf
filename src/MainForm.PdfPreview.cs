@@ -19,6 +19,26 @@ namespace TradutorPdfOllama
             if (outputPath == null) { SetPreviewImage(null); return; }
             if (_previewInFlight.Contains(outputPath)) return;
             if (File.Exists(outputPath)) { CompletePreview(outputPath, null); return; }
+
+            string ext = Path.GetExtension(_currentFilePath);
+            if (string.Equals(ext, ".epub", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+                    byte[] cover = EpubExtractor.ExtractCoverImage(_currentFilePath);
+                    if (cover != null && cover.Length > 0)
+                    {
+                        File.WriteAllBytes(outputPath, cover);
+                        CompletePreview(outputPath, null);
+                        return;
+                    }
+                }
+                catch { }
+                SetPreviewImage(null);
+                return;
+            }
+
             string scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "render_pdf_page.ps1");
             if (!File.Exists(scriptPath)) { CompletePreview(outputPath, "Script de visualização não encontrado."); return; }
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath));

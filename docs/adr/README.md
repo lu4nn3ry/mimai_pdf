@@ -1,4 +1,4 @@
-﻿# 🏛️ Architecture Decision Records (ADR) — Mimai PDF
+# 🏛️ Architecture Decision Records (ADR) — Mimai PDF
 
 Este diretório mantém o registro histórico das decisões de arquitetura de software (ADRs) adotadas no **Mimai PDF**.
 
@@ -16,3 +16,4 @@ Este diretório mantém o registro histórico das decisões de arquitetura de so
 | [ADR-0008](0008-atualizacao-do-visor-e-formulas-locais.md) | Atualização do visor e renderização matemática local | **Aceito** | 2026-09-15 |
 | [ADR-0009](0009-chat-contextual-e-edicao-da-traducao.md) | Chat contextual e edição da tradução | **Aceito** | 2026-09-15 |
 | [ADR-0010](0010-extracao-pdf-sob-demanda.md) | Extração PDF sob demanda por página | **Aceito** | 2026-09-15 |
+| [ADR-0011](0011-suporte-a-documentos-epub.md) | Suporte a leitura e tradução de documentos EPUB | **Aceito** | 2026-09-17 |

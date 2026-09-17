@@ -20,6 +20,10 @@ namespace TradutorPdfOllama
         public static List<PdfPageData> ExtractDocument(string filePath)
         {
             string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            if (ext == ".epub")
+            {
+                return EpubExtractor.ExtractDocument(filePath);
+            }
             if (ext != ".pdf")
             {
                 // Plain text or markdown

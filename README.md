@@ -14,7 +14,7 @@ O Mimai PDF foi criado para facilitar a leitura de artigos matemáticos. A ideia
 
 ## Escopo atual
 
-- Leitura de PDF, TXT e Markdown.
+- Leitura de PDF, EPUB, TXT e Markdown.
 - Extração de texto sob demanda, apenas da página a traduzir, com PdfPig incorporado.
 - Visualização real de PDF com `Windows.Data.Pdf`.
 - OCR local para imagens e páginas escaneadas com `Windows.Media.Ocr`.
@@ -97,7 +97,7 @@ Para preparar o Ollama:
 ollama run qwen2.5:7b
 ```
 
-Depois abra um PDF pelo botão, arraste o arquivo para a janela ou use `Ctrl+O`.
+Depois abra um PDF ou EPUB pelo botão, arraste o arquivo para a janela ou use `Ctrl+O`.
 
 ## Fluxo de processamento
 
